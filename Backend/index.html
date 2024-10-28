@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VNR Students Form</title>
+</head>
+<body>
+    <h2>Submit Student Data</h2>
+    <form id="studentForm">
+        <label for="name">Name:</label><br>
+        <input type="text" id="name" name="name" required><br>
+
+        <label for="roll_no">Roll No:</label><br>
+        <input type="text" id="roll_no" name="roll_no" required><br>
+
+        <label for="section">Section:</label><br>
+        <input type="text" id="section" name="section" required><br>
+
+        <label for="branch">Branch:</label><br>
+        <input type="text" id="branch" name="branch" required><br>
+
+        <label for="email">Email:</label><br>
+        <input type="email" id="email" name="email" required><br>
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('studentForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const data = {
+                name: document.getElementById('name').value,
+                roll_no: document.getElementById('roll_no').value,
+                section: document.getElementById('section').value,
+                branch: document.getElementById('branch').value,
+                email: document.getElementById('email').value
+            };
+
+            fetch('http://localhost:3000/VNR_students', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.text())
+            .then(result => {
+                document.getElementById('result').innerText = result;
+            })
+            .catch(error => {
+                document.getElementById('result').innerText = 'Error submitting form';
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
+</html>
