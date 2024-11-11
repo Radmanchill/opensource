@@ -6,15 +6,29 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="email-categories">
-    <h1>Email Categories</h1>
-    <div id="urgent-emails"></div>
-    <div id="other-emails"></div>
+  <div class="container">
+    <header>
+      <h1>Email Manager</h1>
+    </header>
+
+    <section class="email-section">
+      <h2>Categories</h2>
+      <div class="category urgent">
+        <h3>Urgent Emails</h3>
+        <div id="urgent-emails" class="email-list"></div>
+      </div>
+      <div class="category normal">
+        <h3>Other Emails</h3>
+        <div id="other-emails" class="email-list"></div>
+      </div>
+    </section>
+
+    <section class="task-section">
+      <h2>Task & Calendar Management</h2>
+      <button id="sync-calendar" class="action-button">Sync Calendar</button>
+    </section>
   </div>
-  <div id="task-calendar">
-    <h2>Task & Calendar Management</h2>
-    <button id="sync-calendar">Sync Calendar</button>
-  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

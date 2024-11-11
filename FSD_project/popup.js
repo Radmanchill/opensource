@@ -1,28 +1,25 @@
-document.addEventListener('DOMContentLoaded', () => {
-    fetchEmails();
-    document.getElementById('sync-calendar').addEventListener('click', syncCalendar);
-  });
-  
-  function fetchEmails() {
-    chrome.runtime.sendMessage({ action: 'getEmails' }, (response) => {
-      const urgentEmails = document.getElementById('urgent-emails');
-      const otherEmails = document.getElementById('other-emails');
-  
-      response.emails.forEach(email => {
-        const emailElement = document.createElement('div');
-        emailElement.textContent = `${email.sender}: ${email.subject}`;
-        if (email.urgent) {
-          urgentEmails.appendChild(emailElement);
-        } else {
-          otherEmails.appendChild(emailElement);
-        }
-      });
-    });
-  }
-  
-  function syncCalendar() {
-    chrome.runtime.sendMessage({ action: 'syncCalendar' }, (response) => {
-      alert('Calendar Synced');
-    });
-  }
-  
+document.getElementById('login-button').addEventListener('click', loginWithGoogle);
+document.getElementById('sync-calendar').addEventListener('click', syncCalendar);
+
+function loginWithGoogle() {
+  fetch('http://localhost:3000/auth')
+    .then(() => {
+      alert("Please check your browser to complete Google login.");
+    })
+    .catch(error => console.error("Error during login:", error));
+}
+
+function syncCalendar() {
+  fetch('http://localhost:3000/sync-calendar')
+    .then(response => response.json())
+    .then(data => {
+      const calendarStatus = document.getElementById('calendar-status');
+      if (data.length) {
+        calendarStatus.textContent = `Synced ${data.length} events.`;
+        console.log("Calendar events:", data);
+      } else {
+        calendarStatus.textContent = "No events found.";
+      }
+    })
+    .catch(error => console.error("Error fetching calendar events:", error));
+}
