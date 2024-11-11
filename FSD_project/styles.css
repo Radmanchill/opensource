@@ -1,0 +1,13 @@
+body {
+    font-family: Arial, sans-serif;
+  }
+  #email-categories, #task-calendar {
+    padding: 10px;
+  }
+  h1, h2 {
+    color: #333;
+  }
+  button {
+    padding: 5px 10px;
+  }
+  
