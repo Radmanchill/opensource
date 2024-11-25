@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Email Manager</title>
+    
+    <style>
+        :root {
+            --sidebar-width: 250px;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #fff;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #f8f9fa;
+            padding: 1rem;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+        }
+
+        .email-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .email-item {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .email-item:hover {
+            background: #f5f5f5;
+        }
+
+        .email-sender {
+            font-weight: bold;
+            min-width: 200px;
+        }
+
+        .email-subject {
+            flex: 1;
+        }
+
+        .email-date {
+            color: #666;
+        }
+
+        .category-tag {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+        }
+
+        .filter-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .filter-option {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .filter-option:hover {
+            background: #eee;
+        }
+
+        .search-bar {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 300px;
+        }
+
+        #userInfo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+    </style>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <div id="loginContainer" style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+        <div class="login-container">
+            <h1>Smart Email Manager</h1>
+            <div id="g_id_onload"
+                 data-client_id="42908098411-iqf0pgqm02uarv36b9640gug910f7rbh.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-scope="email profile https://www.googleapis.com/auth/gmail.readonly"
+                 data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+    </div>
+
+    <div id="appContainer" style="display: none; height: 100vh;">
+        <header class="header">
+            <input type="text" class="search-bar" placeholder="Search emails...">
+            <div id="userInfo"></div>
+        </header>
+
+        <div class="main-container">
+            <aside class="sidebar">
+                <div class="filter-section">
+                    <div class="filter-title"> Categories</div>
+                    <div class="filter-option" data-category="all">All Emails</div>
+                    <div class="filter-option" data-category="important">Important</div>
+                    <div class="filter-option" data-category="work">Work</div>
+                    <div class="filter-option" data-category="personal">Personal</div>
+                    <div class="filter-option" data-category="social">Social</div>
+                </div>
+
+                <div class="filter-section">
+                    <div class="filter-title">Time</div>
+                    <div class="filter-option" data-time="today">Today</div>
+                    <div class="filter-option" data-time="week">This Week</div>
+                    <div class="filter-option" data-time="month">This Month</div>
+                </div>
+
+                <div class="filter-section">
+                    <div class="filter-title">Senders</div>
+                    <div id="sendersList">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </aside>
+
+            <main class="email-list" id="emailList">
+                <div class="loading">Loading your emails...</div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Email fetching configuration
+const CONFIG = {
+    maxResults: 20,
+    batchSize: 5
+};
+
+class EmailFetcher {
+    constructor(accessToken) {
+        this.accessToken = accessToken;
+        this.pageToken = null;
+        this.isLoading = false;
+    }
+
+    async initialize() {
+        const emailList = document.getElementById('emailList');
+        emailList.innerHTML = '<div class="loading">Loading your emails...</div>';
+        await this.fetchAndDisplayEmails();
+        this.setupInfiniteScroll();
+    }
+
+    async fetchAndDisplayEmails() {
+        if (this.isLoading) return;
+        this.isLoading = true;
+
+        try {
+            const messages = await this.fetchEmailList();
+            if (!messages || messages.length === 0) {
+                document.getElementById('emailList').innerHTML = '<div class="loading">No emails found.</div>';
+                return;
+            }
+
+            const emailDetails = await this.fetchEmailDetails(messages);
+            this.displayEmails(emailDetails);
+        } catch (error) {
+            console.error('Error fetching emails:', error);
+            document.getElementById('emailList').innerHTML = 
+                '<div class="loading">Error loading emails. Please try again.</div>';
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    async fetchEmailList() {
+        try {
+            const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages');
+            url.searchParams.append('maxResults', CONFIG.maxResults.toString());
+            if (this.pageToken) {
+                url.searchParams.append('pageToken', this.pageToken);
+            }
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            this.pageToken = data.nextPageToken;
+            return data.messages;
+        } catch (error) {
+            console.error('Error in fetchEmailList:', error);
+            throw error;
+        }
+    }
+
+    async fetchEmailDetails(messages) {
+        const emailDetails = [];
+        
+        for (let i = 0; i < messages.length; i += CONFIG.batchSize) {
+            const batch = messages.slice(i, i + CONFIG.batchSize);
+            const batchPromises = batch.map(message => this.fetchSingleEmail(message.id));
+            
+            try {
+                const batchResults = await Promise.all(batchPromises);
+                emailDetails.push(...batchResults);
+            } catch (error) {
+                console.error('Error fetching batch:', error);
+                // Continue with next batch even if one fails
+            }
+        }
+
+        return emailDetails;
+    }
+
+    async fetchSingleEmail(messageId) {
+        const response = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Accept': 'application/json'
+                }
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch email ${messageId}`);
+        }
+
+        return response.json();
+    }
+
+    displayEmails(emails) {
+        const emailList = document.getElementById('emailList');
+        const loadingElement = emailList.querySelector('.loading');
+        if (loadingElement) {
+            emailList.removeChild(loadingElement);
+        }
+
+        emails.forEach(email => {
+            const emailItem = this.createEmailElement(email);
+            emailList.appendChild(emailItem);
+        });
+    }
+
+    createEmailElement(email) {
+        const emailItem = document.createElement('div');
+        emailItem.className = 'email-item';
+
+        const headers = this.parseHeaders(email.payload.headers);
+        const categories = this.categorizeEmail(email);
+
+        emailItem.innerHTML = `
+            <div class="email-sender">${this.formatSender(headers.from)}</div>
+            <div class="email-subject">
+                ${categories.map(cat => 
+                    `<span class="category-tag" style="background: ${this.getCategoryColor(cat)}">${cat}</span>`
+                ).join('')}
+                ${headers.subject || 'No Subject'}
+            </div>
+            <div class="email-preview">${email.snippet}</div>
+            <div class="email-date">${this.formatDate(email.internalDate)}</div>
+        `;
+
+        emailItem.addEventListener('click', () => this.handleEmailClick(email));
+        return emailItem;
+    }
+
+    parseHeaders(headers) {
+        const result = {};
+        const wanted = ['from', 'subject', 'date', 'to'];
+        
+        headers.forEach(header => {
+            const name = header.name.toLowerCase();
+            if (wanted.includes(name)) {
+                result[name] = header.value;
+            }
+        });
+        
+        return result;
+    }
+
+    formatSender(from) {
+        if (!from) return 'Unknown Sender';
+        const match = from.match(/(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)/);
+        return match ? (match[1] || match[2]) : from;
+    }
+
+    formatDate(timestamp) {
+        const date = new Date(parseInt(timestamp));
+        const now = new Date();
+        const diff = now - date;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+        if (days === 0) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else if (days < 7) {
+            return date.toLocaleDateString([], { weekday: 'short' });
+        } else {
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+    }
+
+    categorizeEmail(email) {
+        const categories = [];
+        const headers = this.parseHeaders(email.payload.headers);
+        const content = (email.snippet + headers.subject).toLowerCase();
+
+        if (email.labelIds?.includes('IMPORTANT')) {
+            categories.push('important');
+        }
+        if (content.includes('meeting') || content.includes('report') || 
+            content.includes('project')) {
+            categories.push('work');
+        }
+        if (content.includes('facebook') || content.includes('twitter') || 
+            content.includes('instagram')) {
+            categories.push('social');
+        }
+        
+        return categories;
+    }
+
+    getCategoryColor(category) {
+        const colors = {
+            important: '#ff4444',
+            work: '#44b544',
+            social: '#4444ff',
+            personal: '#b544b5'
+        };
+        return colors[category] || '#888888';
+    }
+
+    handleEmailClick(email) {
+        console.log('Email clicked:', email.id);
+    }
+
+    setupInfiniteScroll() {
+        const emailList = document.getElementById('emailList');
+        
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && this.pageToken) {
+                    this.fetchAndDisplayEmails();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        const sentinel = document.createElement('div');
+        sentinel.className = 'scroll-sentinel';
+        emailList.appendChild(sentinel);
+        observer.observe(sentinel);
+    }
+}
+
+// Update the credential handling
+function handleCredentialResponse(response) {
+    // Handle the Google Sign-In response
+    try {
+        // For debugging
+        console.log('Google Sign-In Response:', response);
+        
+        // Get the access token from the credential response
+        const token = response.credential;
+        
+        // Store the token
+        accessToken = token;
+        
+        // Hide login, show app
+        document.getElementById('loginContainer').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        
+        // Initialize email fetcher with the token
+        const emailFetcher = new EmailFetcher(token);
+        emailFetcher.initialize().catch(error => {
+            console.error('Failed to initialize email fetcher:', error);
+            document.getElementById('emailList').innerHTML = 
+                '<div class="loading">Failed to load emails. Please check console for details.</div>';
+        });
+    } catch (error) {
+        console.error('Error in handleCredentialResponse:', error);
+        document.getElementById('emailList').innerHTML = 
+            '<div class="loading">Authentication error. Please try signing in again.</div>';
+    }
+}
+
+// Add error handling for Google Sign-In
+window.addEventListener('error', function(event) {
+    console.error('Global error:', event.error);
+    document.getElementById('emailList').innerHTML = 
+        '<div class="loading">An error occurred. Please refresh and try again.</div>';
+});
+    </script>
+</body>
+</html>
